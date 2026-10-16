@@ -452,153 +452,50 @@ namespace ARS
             else return val;
         }
 
+        // Kept for compatibility; ARS no longer calls it. Scans the main module once per call.
         public unsafe static byte* FindPattern(string pattern, string mask)
         {
             ProcessModule module = Process.GetCurrentProcess().MainModule;
-
-            ulong address = (ulong)module.BaseAddress.ToInt64();
-            ulong endAddress = address + (ulong)module.ModuleMemorySize;
-
-            for (; address < endAddress; address++)
-            {
-                for (int i = 0; i < pattern.Length; i++)
-                {
-                    if (mask[i] != '?' && ((byte*)address)[i] != pattern[i])
-                    {
-                        break;
-                    }
-                    else if (i + 1 == pattern.Length)
-                    {
-                        return (byte*)address;
-                    }
-                }
-            }
-
-            return null;
+            byte[] pat = new byte[pattern.Length];
+            for (int i = 0; i < pattern.Length; i++) pat[i] = (byte)pattern[i];
+            return ArsMemory.FindPattern((byte*)module.BaseAddress, module.ModuleMemorySize, pat, mask);
         }
 
-
-        static uint steerOffset = 0;
+        // All raw CVehicle input writes go through ArsMemory: offsets are resolved once
+        // (SHVDN's own offsets first, see ArsMemory.cs), failure is cached and logged once,
+        // and a missing offset or vehicle address turns the call into a no-op.
 
         static public unsafe void SetSteerInput(Vehicle handle, float value)
         {
             if (handle == null || !handle.Exists()) return;
-
-            if (steerOffset == 0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x74\x0A\xF3\x0F\x11\xB3\x1C\x09\x00\x00\xEB\x25", "xxxxxx????xx");
-
-                if (addr == IntPtr.Zero)
-                {
-                    Log(LogImportance.Error, "[SetSteerInput] Steer offset pattern not found.");
-                    return;
-                }
-
-                steerOffset = *(uint*)(addr + 6);
-                Log(LogImportance.Info, "[SetSteerInput] Steer offset initialized.");
-            }
-
-            if ((ulong)handle.MemoryAddress == 0) return;
-
-            *((float*)((ulong)handle.MemoryAddress + steerOffset)) = value;
+            ArsMemory.WriteVehFloat(new IntPtr(handle.MemoryAddress), ArsMemory.SteerInput, value);
         }
-
-        static ulong steerAngle = 0x0;
 
         static public unsafe void SetSteerAngle(Vehicle handle, float value)
         {
             if (handle == null || !handle.Exists()) return;
-
-            if (steerAngle == 0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x74\x0A\xF3\x0F\x11\xB3\x1C\x09\x00\x00\xEB\x25", "xxxxxx????xx");
-
-                if (addr == IntPtr.Zero)
-                {
-                    Log(LogImportance.Error, "[SetSteerAngle] Steer angle pattern not found.");
-                    return;
-                }
-
-                steerAngle = *(uint*)(addr + 6) + 8;
-                Log(LogImportance.Info, "[SetSteerAngle] Steer angle offset initialized.");
-            }
-
-            if ((ulong)handle.MemoryAddress == 0) return;
-
-            *((float*)((ulong)handle.MemoryAddress + steerAngle)) = value;
+            ArsMemory.WriteVehFloat(new IntPtr(handle.MemoryAddress), ArsMemory.SteerAngle, value);
         }
 
 
         static public unsafe float GetSteerInput(Vehicle handle)
         {
-
             if (!CanWeUse(handle)) return 0f;
-
-            if (steeroffset == 0x0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x74\x0A\xF3\x0F\x11\xB3\x1C\x09\x00\x00\xEB\x25", "xxxxxx????xx");
-
-                if (addr != null)
-                {
-                    steeroffset = *(uint*)(addr + 6);
-                    Log(LogImportance.Info, "[MEMORY] Learned the steer offset:" + steeroffset);
-                }
-            }
-            else
-            {
-                var address = (ulong)handle.MemoryAddress;
-                return *((float*)(address + steeroffset));
-            }
-
-            return 0;
+            return ArsMemory.ReadVehFloat(new IntPtr(handle.MemoryAddress), ArsMemory.SteerInput);
         }
 
 
         static public unsafe void SetThrottle(Vehicle handle, float value)
         {
             if (handle == null || !handle.Exists()) return;
-
-            if (throttleOffset == 0x0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x74\x0A\xF3\x0F\x11\xB3\x1C\x09\x00\x00\xEB\x25", "xxxxxx????xx");
-
-                if (addr == IntPtr.Zero)
-                {
-                    Log(LogImportance.Error, "[SetThrottle] Pattern for throttle offset not found.");
-                    return;
-                }
-
-                throttleOffset = *(uint*)(addr + 6) + 0x10;
-                Log(LogImportance.Info, "[SetThrottle] Throttle offset initialized.");
-            }
-
-            if ((ulong)handle.MemoryAddress == 0) return;
-
-            *((float*)((ulong)handle.MemoryAddress + throttleOffset)) = value;
+            ArsMemory.WriteVehFloat(new IntPtr(handle.MemoryAddress), ArsMemory.Throttle, value);
         }
 
 
         static public unsafe void SetBrakes(Vehicle handle, float value)
         {
             if (!CanWeUse(handle)) return;
-
-            if (brakeOffset == 0x0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x74\x0A\xF3\x0F\x11\xB3\x1C\x09\x00\x00\xEB\x25", "xxxxxx????xx");
-
-                if (addr == IntPtr.Zero)
-                {
-                    Log(LogImportance.Error, "[SetBrakes] Pattern for brake offset not found.");
-                    return;
-                }
-
-                brakeOffset = *(uint*)(addr + 6) + 0x14;
-                Log(LogImportance.Info, "[SetBrakes] Brake offset initialized.");
-            }
-
-            if (handle == null || handle.MemoryAddress == null) return;
-
-            *((float*)((ulong)handle.MemoryAddress + brakeOffset)) = value;
+            ArsMemory.WriteVehFloat(new IntPtr(handle.MemoryAddress), ArsMemory.Brake, value);
         }
 
 
@@ -4131,52 +4028,24 @@ namespace ARS
             ARS.DrawLine(e.Position + direction + (e.Velocity.Normalized * lenght), e.Position + direction + (e.Velocity.Normalized * -lenght), Color.Red);
             ARS.DrawLine(e.Position - direction + (e.Velocity.Normalized * lenght), e.Position - direction + (e.Velocity.Normalized * -lenght), Color.Red);
         }
+        // Wheel array / count offsets come from ArsMemory (SHVDN WheelPtrArrayOffset / WheelCountOffset).
+        // Unresolved offset or null vehicle -> 0 / empty list instead of a read near address 0.
         static public unsafe ulong GetWheelsPtr(Vehicle handle)
         {
-            GameVersion gameVersion = Game.Version;
-            var address = (ulong)handle.MemoryAddress;
-            if (wheelsPtr == 0x0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x3B\xB7\x48\x0B\x00\x00\x7D\x0D", "xx????xx");
-
-                if (addr != null)
-                {
-                    wheelsPtr = *(uint*)(addr + 2) - 8;
-                    Log(LogImportance.Info, "[MEMORY] Learned the handling offset: " + wheelsPtr);
-
-                }
-            }
-            return *((ulong*)(address + wheelsPtr));
+            if (handle == null) return 0;
+            return ArsMemory.GetWheelArray(new IntPtr(handle.MemoryAddress));
         }
 
         static public unsafe int GetNumWheels(Vehicle handle)
         {
-
-            if (numwheelsoffset == 0x0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x3B\xB7\x48\x0B\x00\x00\x7D\x0D", "xx????xx");
-
-                if (addr != null)
-                {
-                    numwheelsoffset = *(uint*)(addr + 2);
-                }
-            }
-            GameVersion gameVersion = Game.Version;
-            var address = (ulong)handle.MemoryAddress;
-            return *((int*)(address + numwheelsoffset));
+            if (handle == null) return 0;
+            return ArsMemory.GetNumWheels(new IntPtr(handle.MemoryAddress));
         }
 
         static public unsafe List<ulong> GetWheelPtrs(Vehicle handle)
         {
-            var wheelPtr = GetWheelsPtr(handle);
-            var numWheels = GetNumWheels(handle);
-            List<ulong> wheelPtrs = new List<ulong>();
-            for (int i = 0; i < numWheels; i++)
-            {
-                var wheelAddr = *((ulong*)(wheelPtr + 0x008 * (ulong)i));
-                wheelPtrs.Add(wheelAddr);
-            }
-            return wheelPtrs;
+            if (handle == null) return new List<ulong>();
+            return ArsMemory.GetWheelPtrs(new IntPtr(handle.MemoryAddress));
         }
 
 
@@ -4222,7 +4091,7 @@ namespace ARS
         static public unsafe List<float> GetWheelsGrip(Vehicle handle)
         {
             List<ulong> wheelPtrs = GetWheelPtrs(handle);
-            ulong offset = 0x198;
+            ulong offset = (ulong)ArsMemory.TyreGripOffset; // 0x198 unless UseScannedWheelOffsets=1
             List<float> angle = new List<float>();
             foreach (var wheel in wheelPtrs)
             {
@@ -4234,7 +4103,7 @@ namespace ARS
         static public unsafe List<float> GetWheelsWetgrip(Vehicle handle)
         {
             List<ulong> wheelPtrs = GetWheelPtrs(handle);
-            ulong offset = 0x19C;
+            ulong offset = (ulong)ArsMemory.WetGripOffset; // 0x19C unless UseScannedWheelOffsets=1
             List<float> angle = new List<float>();
             foreach (var wheel in wheelPtrs)
             {
@@ -4247,7 +4116,7 @@ namespace ARS
         static public unsafe float GetWheelsMaxWheelspin(Vehicle handle)
         {
             List<ulong> wheelPtrs = GetWheelPtrs(handle);
-            ulong offset = 0x174;
+            ulong offset = (ulong)ArsMemory.WheelSpinOffset; // 0x174 unless UseScannedWheelOffsets=1
             float w = 0f;
             foreach (var wheel in wheelPtrs)
             {
@@ -4259,7 +4128,7 @@ namespace ARS
         static public unsafe float GetWheelsAvgWheelspin(Vehicle handle)
         {
             List<ulong> wheelPtrs = GetWheelPtrs(handle);
-            ulong offset = 0x174;
+            ulong offset = (ulong)ArsMemory.WheelSpinOffset; // 0x174 unless UseScannedWheelOffsets=1
             float w = 0f;
             foreach (var wheel in wheelPtrs)
             {
@@ -4673,23 +4542,34 @@ namespace ARS
                 UI.Notify("~o~Failed to load the Settings file.~w~ Check you've installed ARS properly.");
             }
 
+            ArsMemory.LogInfo = s => Log(LogImportance.Info, s);
+            ArsMemory.LogError = s => Log(LogImportance.Error, s, true);
             if (File.Exists(@"scripts\ARS\MemoryOffsets.ini"))
             {
+                // Read raw strings: ScriptSettings.GetValue<ulong> (SHVDN 2.11.6) turns "0x2452" into 0
+                // (Convert.ChangeType throws, caught -> default). ArsMemory parses hex/decimal, sanity-checks,
+                // and only uses a file value when auto-resolution failed or PreferFileOffsets=1.
                 ScriptSettings menOffexts = ScriptSettings.Load(@"scripts\ARS\MemoryOffsets.ini");
-                throttleOffset = menOffexts.GetValue<ulong>("MEMORY_OFFSETS", "Throttle", 0x0);
-                steeroffset = menOffexts.GetValue<ulong>("MEMORY_OFFSETS", "Steer", 0x0);
-                brakeOffset = menOffexts.GetValue<ulong>("MEMORY_OFFSETS", "Brake", 0x0);
+                ArsMemory.SetFileOverrides(
+                    menOffexts.GetValue("MEMORY_OFFSETS", "Steer", ""),
+                    menOffexts.GetValue("MEMORY_OFFSETS", "Throttle", ""),
+                    menOffexts.GetValue("MEMORY_OFFSETS", "Brake", ""),
+                    menOffexts.GetValue<int>("MEMORY_OFFSETS", "PreferFileOffsets", 0) == 1,
+                    menOffexts.GetValue<int>("MEMORY_OFFSETS", "UseScannedWheelOffsets", 0) == 1);
                 Log(LogImportance.Info, "Loaded Memory Offsets.");
-
-                //                steeroffset = 0x9AC;
-                Log(LogImportance.Info, "[MEMORY] Learned the steer offset from file: " + steeroffset);
-
             }
             else
             {
                 Log(LogImportance.Error, " 'Scripts/ARS/MemoryOffsets.ini' does not exist. ARS will try to learn the memory offsets from the game.");
                 UI.Notify("~o~Failed to load the MemoryOffsets file.~w~ Check you've installed ARS properly.");
             }
+            ArsMemory.EnsureResolved();
+            steeroffset = (ulong)ArsMemory.SteerInput;
+            throttleOffset = (ulong)ArsMemory.Throttle;
+            brakeOffset = (ulong)ArsMemory.Brake;
+            wheelsPtr = (ulong)ArsMemory.WheelPtrArray;
+            numwheelsoffset = (ulong)ArsMemory.WheelCount;
+            handlingPtr = (ulong)ArsMemory.HandlingData;
 
 
             List<ScriptSettings> pFiles = new List<ScriptSettings>();
@@ -4847,20 +4727,14 @@ namespace ARS
         }
         */
 
+        // CHandlingData* at CVehicle + SHVDN HandlingDataOffset (same pattern/derivation ARS used).
+        // Returns 0 when unresolved; every caller below already returns 0 for a null handling pointer.
+        // Field offsets 0x14/0x80/0x88/0x98 match SHVDN 3.7 HandlingData (DownForceModifier, SteeringLock,
+        // TractionCurveMax, TractionCurveLateral).
         static public unsafe ulong GetHandlingPtr(Vehicle handle)
         {
-            GameVersion gameVersion = Game.Version;
-            var address = (ulong)handle.MemoryAddress;
-            if (handlingPtr == 0x0)
-            {
-                IntPtr addr = (IntPtr)FindPattern("\x3C\x03\x0F\x85\x00\x00\x00\x00\x48\x8B\x41\x20\x48\x8B\x88", "xxxx????xxxxxxx");
-
-                if (addr != null)
-                {
-                    handlingPtr = *(uint*)(addr + 0x16);
-                }
-            }
-            return *((ulong*)(address + handlingPtr));
+            if (handle == null) return 0;
+            return ArsMemory.GetHandlingPtr(new IntPtr(handle.MemoryAddress));
         }
 
         public static unsafe float GetTRCurveLat(Vehicle v)
@@ -4936,6 +4810,7 @@ namespace ARS
             if (!CanWeUse(v)) return;
 
             ulong handlingAddress = GetHandlingPtr(v);
+            if (handlingAddress == 0) return;
 
             ulong tractionCurveMaxOffset = 0x00D0;
             *(float*)(handlingAddress + tractionCurveMaxOffset) = mult;
@@ -4948,6 +4823,8 @@ namespace ARS
 
             if (!v.Exists()) return;
 
+            // NOTE (unchanged, never called): v2 MemoryAddress is int*, so this adds (0x838 + gear*4)*4 bytes,
+            // and 0x838 is a pre-2020 offset. Do not call without fixing.
             *(float*)(v.MemoryAddress + 0x838 + gear * sizeof(float)) = ratio;
         }
 

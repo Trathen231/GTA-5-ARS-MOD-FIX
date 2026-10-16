@@ -1580,7 +1580,7 @@ namespace ARS
             float HandlingGrip = Function.Call<float>((Hash)0xA132FB5370554DB0, Car); //GetVehicleMaxTraction
             HandlingGrip = ARS.Clamp(HandlingGrip, 0.5f, 3f);
 
-            GroundGripMultiplier = (float)Math.Round(ARS.GetWheelsGrip(Car).Average(), 3); //Surface grip
+            GroundGripMultiplier = (float)Math.Round(ARS.GetWheelsGrip(Car).DefaultIfEmpty(1f).Average(), 3); //Surface grip (1.0 if wheels unreadable, instead of Average() throwing)
 
 
             /*

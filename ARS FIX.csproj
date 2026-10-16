@@ -1,42 +1,32 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    SDK-style net48 project (converted from the old-style csproj so it builds with `dotnet build`).
+    Build:  dotnet build "ARS FIX.csproj" -c Release
+    Output: bin\Release\net48\ARS.dll  (deploy as scripts\ARS\ARS.dll)
+
+    ScriptHookVDotNet2.dll (v2 API) is NOT in the repo. Copy the one from your game folder to
+    %USERPROFILE%\ars-ref\ScriptHookVDotNet2.dll, or pass -p:ShvdnDir=<folder containing it>.
+  -->
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{E9377D53-BE9F-41E0-A804-BB37009BECB1}</ProjectGuid>
+    <TargetFramework>net48</TargetFramework>
     <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ARS_FIX</RootNamespace>
-    <AssemblyName>ARS FIX</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <AssemblyName>ARS</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Deterministic>true</Deterministic>
+    <LangVersion>7.3</LangVersion>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <NoWarn>$(NoWarn);CS0618;CS0612</NoWarn>
+    <ShvdnDir Condition="'$(ShvdnDir)' == ''">$(USERPROFILE)\ars-ref</ShvdnDir>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ScriptHookVDotNet2">
-      <HintPath>..\..\ScriptHookV_SDK_1.0.617.1a\ScriptHookVDotNet2.dll</HintPath>
+      <HintPath>$(ShvdnDir)\ScriptHookVDotNet2.dll</HintPath>
+      <Private>false</Private>
     </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
@@ -48,11 +38,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AutosportRacingSystem.cs" />
+    <Compile Include="ArsMemory.cs" />
     <Compile Include="DataStructures.cs" />
     <Compile Include="PersonalitySet.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Racer.cs" />
     <Compile Include="SkillSet.cs" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
